@@ -63,3 +63,8 @@ aws ecs update-service --region eu-west-1 --cluster juice-shop-demo \
 This branch drops upstream's workflows (CI, CodeQL, ZAP, releases and others), which would
 otherwise run on every push here. Only `cybersheriff-deploy.yml` remains. The app's code is
 unchanged from v17.1.1.
+
+The Dockerfile's build stages use `node:20-bullseye` instead of upstream's `node:20-buster`:
+Buster's package servers are archived, so `apt-get update` fails there. Bullseye is the Debian
+release the final distroless image (`nodejs20-debian11`) runs on, so the native `libxmljs`
+module built in it still matches at runtime.
