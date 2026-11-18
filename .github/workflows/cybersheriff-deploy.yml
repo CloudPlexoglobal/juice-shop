@@ -1,0 +1,58 @@
+name: Deploy the Cyber Sheriff demo
+
+# Builds this branch into an image and deploys it to juice.cybersheriff.ai (cybersheriff/stack.yaml).
+# The role can only push this image and update the juice-shop-demo stack; CloudFormation does the
+# rest with the role the bootstrap stack created. See cybersheriff/README.md.
+
+on:
+  push:
+    branches: [cybersheriff]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: cybersheriff-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-1
+  DEPLOY_ROLE_ARN: arn:aws:iam::276023487603:role/juice-shop-demo-github-deploy
+  CLOUDFORMATION_ROLE_ARN: arn:aws:iam::276023487603:role/juice-shop-demo-cloudformation
+  REPOSITORY: 276023487603.dkr.ecr.eu-west-1.amazonaws.com/cyber-sheriff/juice-shop
+  STACK_NAME: juice-shop-demo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${REPOSITORY%%/*}"
+
+      - name: Build and push the image
+        run: |
+          docker build --platform linux/amd64 -t "$REPOSITORY:${GITHUB_SHA}" .
+          docker push "$REPOSITORY:${GITHUB_SHA}"
+
+      - name: Deploy the stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file cybersheriff/stack.yaml \
+            --role-arn "$CLOUDFORMATION_ROLE_ARN" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides "ImageUri=$REPOSITORY:${GITHUB_SHA}" \
+            --no-fail-on-empty-changeset
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs" --output table
