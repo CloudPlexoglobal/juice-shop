@@ -16,7 +16,9 @@ there is to find.
 ## How it is fenced off
 
 `cybersheriff/stack.yaml` keeps the demo away from everything else:
-- **Network:** its own VPC.
+- **Network:** its own subnets (`10.0.200.0/24`, `10.0.201.0/24`) and route table in
+  `aws-default-vpc`. The account is at its VPC quota, so the demo shares that VPC and the security
+  groups do the fencing.
 - **Load balancer:** its own, HTTPS only.
 - **Container:** only that load balancer can reach it, and it can send nothing out but HTTPS, which
   it needs to pull its image.

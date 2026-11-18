@@ -1,11 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   Cyber Sheriff demo Juice Shop at juice.cybersheriff.ai - deliberately vulnerable, so it is fenced
-  off: its own VPC, its own load balancer, a container only that load balancer can reach, outbound
+  off: its own subnets and route table (in a shared VPC), its own load balancer, a container only that load balancer can reach, outbound
   HTTPS only (to pull its image), and no IAM task role, so nothing in it can obtain AWS credentials.
   Deployed by .github/workflows/cybersheriff-deploy.yml through the bootstrap's CloudFormation role.
 
 Parameters:
+  # The account is at its VPC quota, so the demo lives in aws-default-vpc (the least-used VPC)
+  # in subnets and a route table of its own; the security groups below do the fencing.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-039a40981013b2835
+  InternetGatewayId:
+    Type: String
+    Default: igw-0604704f4ca82e92b
   ImageUri:
     Type: String
     Description: The Juice Shop image the workflow built from this branch.
@@ -22,46 +30,35 @@ Parameters:
     Default: '2048'
 
 Resources:
-  # ------------------------------------------------------------------ an isolated network
-  Vpc:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.77.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      Tags: [{ Key: Name, Value: juice-shop-demo }]
-
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-  GatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties: { VpcId: !Ref Vpc, InternetGatewayId: !Ref InternetGateway }
-
+  # ------------------------------------------------------------------ its own subnets
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
-    Properties: { VpcId: !Ref Vpc }
+    Properties:
+      VpcId: !Ref VpcId
+      Tags: [{ Key: Name, Value: juice-shop-demo }]
   DefaultRoute:
     Type: AWS::EC2::Route
-    DependsOn: GatewayAttachment
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+      GatewayId: !Ref InternetGatewayId
 
   SubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref Vpc
-      CidrBlock: 10.77.1.0/24
+      VpcId: !Ref VpcId
+      CidrBlock: 10.0.200.0/24
       AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: juice-shop-demo-a }]
   SubnetB:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref Vpc
-      CidrBlock: 10.77.2.0/24
+      VpcId: !Ref VpcId
+      CidrBlock: 10.0.201.0/24
       AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: juice-shop-demo-b }]
   SubnetARoutes:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties: { SubnetId: !Ref SubnetA, RouteTableId: !Ref PublicRouteTable }
@@ -74,7 +71,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: juice-shop-demo load balancer - HTTP(S) from anywhere
-      VpcId: !Ref Vpc
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
         - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
@@ -83,7 +80,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: juice-shop-demo task - only the load balancer in, only HTTPS out
-      VpcId: !Ref Vpc
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3000
@@ -115,7 +112,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: juice-shop-demo
-      VpcId: !Ref Vpc
+      VpcId: !Ref VpcId
       Port: 3000
       Protocol: HTTP
       TargetType: ip
