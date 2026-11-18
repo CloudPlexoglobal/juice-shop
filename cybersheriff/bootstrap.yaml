@@ -8,6 +8,12 @@ Parameters:
   GitHubRepository:
     Type: String
     Default: CloudPlexoglobal/juice-shop
+  GitHubImmutableRepository:
+    Type: String
+    Default: CloudPlexoglobal@293055208/juice-shop@1462934052
+    Description: >-
+      The same repository in GitHub's immutable OIDC subject form (owner@id/repo@id), which this
+      repository's tokens use. Read it from GET /repos/{repo}/actions/oidc/customization/sub.
   DeployBranch:
     Type: String
     Default: cybersheriff
@@ -98,7 +104,9 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubRepository}:ref:refs/heads/${DeployBranch}'
+                token.actions.githubusercontent.com:sub:
+                  - !Sub 'repo:${GitHubRepository}:ref:refs/heads/${DeployBranch}'
+                  - !Sub 'repo:${GitHubImmutableRepository}:ref:refs/heads/${DeployBranch}'
       Policies:
         - PolicyName: push-image-and-deploy-demo
           PolicyDocument:
