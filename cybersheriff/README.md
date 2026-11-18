@@ -68,3 +68,6 @@ The Dockerfile's build stages use `node:20-bullseye` instead of upstream's `node
 Buster's package servers are archived, so `apt-get update` fails there. Bullseye is the Debian
 release the final distroless image (`nodejs20-debian11`) runs on, so the native `libxmljs`
 module built in it still matches at runtime.
+
+The Dockerfile also pins `@cyclonedx/cyclonedx-npm` to 1.19.3 instead of `latest`. The 4.x line
+dropped the bundled XML writer, so `npm run sbom` fails on it.

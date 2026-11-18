@@ -15,7 +15,9 @@ RUN rm data/chatbot/botDefaultTrainingData.json || true
 RUN rm ftp/legal.md || true
 RUN rm i18n/*.json || true
 
-ARG CYCLONEDX_NPM_VERSION=latest
+# Pinned: "latest" (4.x) dropped the bundled XML writer, so `npm run sbom` fails. 1.19.3
+# (July 2024) predates v17.1.1 and still writes the XML bill of materials.
+ARG CYCLONEDX_NPM_VERSION=1.19.3
 RUN npm install -g @cyclonedx/cyclonedx-npm@$CYCLONEDX_NPM_VERSION
 RUN npm run sbom
 
